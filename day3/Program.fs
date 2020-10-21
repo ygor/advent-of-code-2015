@@ -1,4 +1,6 @@
-﻿open System.IO
+﻿open System
+open System.IO
+open day3.ListExtensions
 
 type Move =
     | North
@@ -6,7 +8,6 @@ type Move =
     | East
     | West
 type House = int * int
-type Visits = Map<House, int>
 
 let input = File.ReadAllLines(@"input.txt") |> Seq.head
 
@@ -23,33 +24,36 @@ let moves =
     |> Seq.toList
     |> List.map parseMove
 
-let visit house visits =
+let visit house visited =
     let count =
-        if Map.containsKey house visits then visits.[house] + 1 else 1
-    Map.add house count visits
+        if Map.containsKey house visited then visited.[house] + 1 else 1
+    Map.add house count visited
 
-let deliver moves visits =
+let deliverPresents moves visited =
     let start = (0, 0)
     moves
-    |> Seq.fold (fun (house, visits) move ->
+    |> Seq.fold (fun (house, visited') move ->
         let house' =
             match move with
             | North -> (fst house + 1, snd house)
             | South -> (fst house - 1, snd house)
             | East -> (fst house, snd house + 1)
             | West -> (fst house, snd house - 1)
-        (house', visit house' visits)) (start, visit start visits)
+        (house', visit house' visited')) (start, visit start visited)
+    |> snd
 
-let prepend2 (x, y) (xs, ys) = x::xs, y::ys
+let housesVisitedBySanta = deliverPresents moves Map.empty<House, int> |> Map.count
 
-let rec splitList = function
-    | [] | [_] as xs -> xs, []
-    | x::y::xs -> prepend2 (x, y) (splitList xs)  
-
-let splitMoves = splitList moves
+let housesVisitedBySantaAndRobo =
+    let (santaMoves, roboMoves) = List.splitPairwise moves
+    
+    Map.empty<House, int>
+    |> deliverPresents santaMoves
+    |> deliverPresents roboMoves
+    |> Map.count
 
 [<EntryPoint>]
-let main argv =
-    let visits = deliver moves Map.empty<House, int> |> snd
-    Map.count visits |> printfn "Part 1: Visited houses: %i"
+let main argv =    
+    housesVisitedBySanta |> printfn "Part 1: Visited houses by santa: %i"
+    housesVisitedBySantaAndRobo |> printfn "Part 2: Visited houses by santa and robo: %i"
     0
