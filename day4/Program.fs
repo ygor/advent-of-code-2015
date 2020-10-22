@@ -2,7 +2,7 @@
 
 let secret = File.ReadLines(@"input.txt") |> Seq.head
 
-let computeHash (message: string) =
+let md5Hex (message: string) =
     use md5 = System.Security.Cryptography.MD5.Create()
     message
     |> System.Text.Encoding.ASCII.GetBytes
@@ -10,10 +10,9 @@ let computeHash (message: string) =
     |> Seq.map (fun c -> c.ToString("X2"))
     |> Seq.reduce (+)
 
-let startsWithZeros num message =
-    let hash = computeHash message
-    let start = [ 1 .. num ] |> Seq.fold (fun acc _ -> acc + "0") ""
-    hash.Substring(0, num) = start
+let startsWith (start:string) message =
+    let hash = md5Hex message
+    hash.Substring(0, start.Length) = start
 
 let mine secret validator =
     1
@@ -24,6 +23,6 @@ let mine secret validator =
 
 [<EntryPoint>]
 let main argv =
-    mine secret (startsWithZeros 5) |> printfn "Part 1: hash is found for number: %i"
-    mine secret (startsWithZeros 6) |> printfn "Part 2: hash is found for number: %i"
+    mine secret (startsWith "00000") |> printfn "Part 1: hash is found for number: %i"
+    mine secret (startsWith "000000") |> printfn "Part 2: hash is found for number: %i"
     0
