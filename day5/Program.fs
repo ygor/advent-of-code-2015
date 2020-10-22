@@ -25,10 +25,26 @@ let rec containsForbidden (forbidden: string list) (string: string) =
 let isNice (string: string) =
     hasThreeVowels string && hasRepeatedLetter (Seq.toList string) && (containsForbidden forbidden string |> not)
 
+let rec containsRepeatedPair (string: string) =
+    string.Length >= 4
+    && (string.Substring(2).Contains(string.Substring(0, 2)) || containsRepeatedPair (string.Substring(1)))
+
+let rec containsRepeatedLetter (string: string) =
+    string.Length >= 3 && (string.[0] = string.[2] || containsRepeatedLetter (string.Substring(1)))
+
+let isNicer (string: string) =
+    containsRepeatedPair string && containsRepeatedLetter string
+
 [<EntryPoint>]
 let main argv =
     strings
     |> Seq.filter isNice
     |> Seq.length
     |> printfn "Part 1: number of nice strings %i"
+
+    strings
+    |> Seq.filter isNicer
+    |> Seq.length
+    |> printfn "Part 2: number of nicer strings %i"
+
     0
