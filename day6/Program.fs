@@ -20,13 +20,13 @@ let parseCoordinate (string: string) =
 let parseGrid offset (line: string) =
     line.Substring(offset).Split(" ") |> (fun xs -> (parseCoordinate xs.[0], parseCoordinate xs.[2]))
 
-let parseLine (line: string) =
+let parseInstruction (line: string) =
     if line.Contains("turn on") then On(parseGrid 8 line)
     elif line.Contains("turn off") then Off(parseGrid 9 line)
     elif line.Contains("toggle") then Toggle(parseGrid 7 line)
     else failwith "Invalid instruction"
 
-let instructions = input |> Seq.map parseLine
+let instructions = input |> Seq.map parseInstruction
 
 let lights<'a> initial =
     Seq.allPairs [ 0 .. 999 ] [ 0 .. 999 ]
