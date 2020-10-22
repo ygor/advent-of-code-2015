@@ -32,7 +32,7 @@ let lights<'a> initial =
     Seq.allPairs [ 0 .. 999 ] [ 0 .. 999 ]
     |> Seq.fold (fun (lights': Lights<'a>) coordinate -> lights'.Add(coordinate, initial)) Map.empty<Coordinate, 'a>
 
-let changeLights (lights: Lights<'a>) grid changeFn =
+let changeLightsInGrid (lights: Lights<'a>) grid changeFn =
     let (a, b), (c, d) = grid
     [ a .. c ]
     |> Seq.fold (fun (lights': Lights<'a>) x ->
@@ -41,15 +41,15 @@ let changeLights (lights: Lights<'a>) grid changeFn =
 
 let applyInstruction lights instruction =
     match instruction with
-    | On grid -> changeLights lights grid (fun _ -> true)
-    | Off grid -> changeLights lights grid (fun _ -> false)
-    | Toggle grid -> changeLights lights grid (fun state -> not state)
+    | On grid -> changeLightsInGrid lights grid (fun _ -> true)
+    | Off grid -> changeLightsInGrid lights grid (fun _ -> false)
+    | Toggle grid -> changeLightsInGrid lights grid (fun state -> not state)
 
 let applyBrightnessInstruction lights instruction =
     match instruction with
-    | On grid -> changeLights lights grid (fun state -> state + 1)
-    | Off grid -> changeLights lights grid (fun state -> Math.Max(0, (state - 1)))
-    | Toggle grid -> changeLights lights grid (fun state -> state + 2)
+    | On grid -> changeLightsInGrid lights grid (fun state -> state + 1)
+    | Off grid -> changeLightsInGrid lights grid (fun state -> Math.Max(0, (state - 1)))
+    | Toggle grid -> changeLightsInGrid lights grid (fun state -> state + 2)
 
 let setup lights instructions instructionFn =
     instructions |> Seq.fold instructionFn lights
