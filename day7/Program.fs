@@ -18,19 +18,19 @@ and Gate =
 
 module Gates =
     let AND src1 src2 =
-        Binary(src1, src2, (fun s1 s2 -> (s1, s2) |> Option.bind2 (fun v1 v2 -> Some(v1 &&& v2))))
+        Binary(src1, src2, Option.bind2 (fun v1 v2 -> v1 &&& v2 |> Some))
 
     let OR src1 src2 =
-        Binary(src1, src2, (fun s1 s2 -> (s1, s2) |> Option.bind2 (fun v1 v2 -> Some(v1 ||| v2))))
+        Binary(src1, src2, Option.bind2 (fun v1 v2 -> v1 ||| v2 |> Some))
 
-    let LSHIFT src value =
-        Unary(src, (fun s -> s |> Option.bind (fun v -> Some(v <<< value))))
+    let LSHIFT src n =
+        Unary(src, Option.bind (fun v -> v <<< n |> Some))
 
-    let RSHIFT src value =
-        Unary(src, (fun s -> s |> Option.bind (fun v -> Some(v >>> value))))
+    let RSHIFT src n =
+        Unary(src, Option.bind (fun v -> v >>> n |> Some))
 
     let NOT src =
-        Unary(src, (fun s -> s |> Option.bind (fun v -> Some(~~~v))))
+        Unary(src, Option.bind ((~~~) >> Some))
 
 type Circuit =
     { Wires: Map<Wire, Signal>
@@ -45,9 +45,9 @@ type Circuit =
         | Some _ -> circuit
         | None -> { circuit with Wires = Map.add wire None circuit.Wires }
 
-    member circuit.addWireOrUpdate wire signal =
+    member circuit.addOrUpdateWire wire signal =
         match Map.tryFind wire circuit.Wires with
-        | Some s -> { circuit with Wires = circuit.Wires.Remove(wire).Add(wire, signal) }
+        | Some _ -> { circuit with Wires = circuit.Wires.Remove(wire).Add(wire, signal) }
         | None -> { circuit with Wires = circuit.Wires.Add(wire, signal) }
 
     member circuit.connect wire (source: Source) =
@@ -59,10 +59,6 @@ let circuit =
         match line with
         | Regex "NOT ([a-z]+) -> ([a-z]+)" [ in'; out ] ->
             circuit.connect out (Gate <| Gates.NOT(Wire in'))
-        | Regex "([a-z]+) -> ([a-z]+)" [ in'; out ] ->
-            circuit.connect out (Wire in')
-        | Regex "([0-9]+) -> ([a-z]+)" [ in'; out ] ->
-            circuit.connect out (Signal <| Some(uint16 in'))
         | Regex "([a-z]+) AND ([a-z]+) -> ([a-z]+)" [ in1; in2; out ] ->
             circuit.connect out (Gate <| Gates.AND (Wire in1) (Wire in2))
         | Regex "([0-9]+) AND ([a-z]+) -> ([a-z]+)" [ in1; in2; out ] ->
@@ -73,6 +69,10 @@ let circuit =
             circuit.connect out (Gate <| Gates.LSHIFT (Wire in1) (int in2))
         | Regex "([a-z]+) RSHIFT ([0-9]+) -> ([a-z]+)" [ in1; in2; out ] ->
             circuit.connect out (Gate <| Gates.RSHIFT (Wire in1) (int in2))
+        | Regex "([a-z]+) -> ([a-z]+)" [ in'; out ] ->
+            circuit.connect out (Wire in')
+        | Regex "([0-9]+) -> ([a-z]+)" [ in'; out ] ->
+            circuit.connect out (Signal <| signal in')
         | x -> failwithf "Invalid instruction: %A" x) Circuit.Default
 
 let rec evaluateWire (circuit: Circuit) wire =
@@ -80,10 +80,10 @@ let rec evaluateWire (circuit: Circuit) wire =
     | Some _ -> circuit
     | None ->
         let source = circuit.Connections.[wire]
-        let (signal: Signal), (circuit: Circuit) = evaluateSource source circuit
-        circuit.addWireOrUpdate wire signal
+        let (signal: Signal), (circuit: Circuit) = evaluateSource circuit source
+        circuit.addOrUpdateWire wire signal
 
-and evaluateSource (source: Source) (circuit: Circuit) =
+and evaluateSource (circuit: Circuit) (source: Source) =
     match source with
     | Signal signal -> signal, circuit
     | Wire wire ->
@@ -91,24 +91,33 @@ and evaluateSource (source: Source) (circuit: Circuit) =
         let signal = circuit.Wires.[wire]
         signal, circuit
     | Gate (Unary (source, f)) ->
-        let signal, circuit = evaluateSource source circuit
+        let signal, circuit = evaluateSource circuit source
         f signal, circuit
     | Gate (Binary (s1, s2, f)) ->
-        let s1, circuit = evaluateSource s1 circuit
-        let s2, circuit' = evaluateSource s2 circuit
-        f s1 s2, circuit'
+        let s1, circuit = evaluateSource circuit s1
+        let s2, circuit = evaluateSource circuit s2
+        f s1 s2, circuit
 
 let evaluate (circuit: Circuit) =
     Map.keys circuit.Wires |> Seq.fold evaluateWire circuit
 
-let part1 wire circuit =
+let part1 circuit =
     let circuit = evaluate circuit
-    circuit.Wires.[wire]
+    circuit.Wires.["a"]
+
+let part2 (circuit: Circuit) bValue =
+    let circuit = circuit.addOrUpdateWire "b" (Some bValue) |> evaluate
+    circuit.Wires.["a"]
 
 [<EntryPoint>]
 let main argv =
-    let signalA = part1 "a" circuit
+    let signalA = part1 circuit
     match signalA with
     | Some v -> printfn "Part 1. Value on wire a: %i" v
     | None -> printfn "Part 1. No signal on wire a"
+
+    let signalA' = signalA |> Option.bind (part2 circuit)
+    match signalA' with
+    | Some v -> printfn "Part 2. Value on wire a: %i" v
+    | None -> printfn "Part 2. No signal on wire a"
     0
