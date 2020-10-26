@@ -1,101 +1,114 @@
 ﻿open System.IO
+open Extensions
 
 type Wire = string
 
-type Signal = int
+type Signal = uint16 option
 
-type Input =
-    | Wire of Wire
+let signal n = Some <| uint16 n
+
+type Source =
     | Signal of Signal
+    | Wire of string
+    | Gate of Gate
 
-let parseInput (string: string) =
-    match System.Int32.TryParse string with
-    | true, value -> Signal value
-    | _ -> Wire string
+and Gate =
+    | Unary of Source * (Signal -> Signal)
+    | Binary of Source * Source * (Signal -> Signal -> Signal)
 
-type Instruction =
-    | Set of Input * Wire
-    | LeftShift of Wire * Signal * Wire
-    | RightShift of Wire * Signal * Wire
-    | And of Input * Input * Wire
-    | Or of Input * Input * Wire
-    | Not of Wire * Wire
+module Gates =
+    let AND src1 src2 =
+        Binary(src1, src2, (fun s1 s2 -> (s1, s2) |> Option.bind2 (fun v1 v2 -> Some(v1 &&& v2))))
 
-let parseInstruction (string: string) =
-    let args = string.Split " "
-    if args.[0] = "NOT" then Not(args.[1], args.[3])
-    elif args.[1] = "->" then Set(parseInput args.[0], args.[2])
-    elif args.[1] = "LSHIFT" then LeftShift(args.[0], int args.[2], args.[4])
-    elif args.[1] = "RSHIFT" then RightShift(args.[0], int args.[2], args.[4])
-    elif args.[1] = "AND" then And(parseInput args.[0], parseInput args.[2], args.[4])
-    elif args.[1] = "OR" then Or(parseInput args.[0], parseInput args.[2], args.[4])
-    else failwith "Invalid instruction"
+    let OR src1 src2 =
+        Binary(src1, src2, (fun s1 s2 -> (s1, s2) |> Option.bind2 (fun v1 v2 -> Some(v1 ||| v2))))
 
-let instructions =
+    let LSHIFT src value =
+        Unary(src, (fun s -> s |> Option.bind (fun v -> Some(v <<< value))))
+
+    let RSHIFT src value =
+        Unary(src, (fun s -> s |> Option.bind (fun v -> Some(v >>> value))))
+
+    let NOT src =
+        Unary(src, (fun s -> s |> Option.bind (fun v -> Some(~~~v))))
+
+type Circuit =
+    { Wires: Map<Wire, Signal>
+      Connections: Map<Wire, Source> }
+
+    static member Default =
+        { Wires = Map.empty<Wire, Signal>
+          Connections = Map.empty<Wire, Source> }
+
+    member circuit.addWireIfNotExists wire =
+        match Map.tryFind wire circuit.Wires with
+        | Some _ -> circuit
+        | None -> { circuit with Wires = Map.add wire None circuit.Wires }
+
+    member circuit.addWireOrUpdate wire signal =
+        match Map.tryFind wire circuit.Wires with
+        | Some s -> { circuit with Wires = circuit.Wires.Remove(wire).Add(wire, signal) }
+        | None -> { circuit with Wires = circuit.Wires.Add(wire, signal) }
+
+    member circuit.connect wire (source: Source) =
+        { circuit.addWireIfNotExists wire with Connections = Map.add wire source circuit.Connections }
+
+let circuit =
     File.ReadAllLines(@"input.txt")
-    |> Seq.map parseInstruction
-    |> Seq.toList
+    |> Seq.fold (fun (circuit: Circuit) (line: string) ->
+        match line with
+        | Regex "NOT ([a-z]+) -> ([a-z]+)" [ in'; out ] ->
+            circuit.connect out (Gate <| Gates.NOT(Wire in'))
+        | Regex "([a-z]+) -> ([a-z]+)" [ in'; out ] ->
+            circuit.connect out (Wire in')
+        | Regex "([0-9]+) -> ([a-z]+)" [ in'; out ] ->
+            circuit.connect out (Signal <| Some(uint16 in'))
+        | Regex "([a-z]+) AND ([a-z]+) -> ([a-z]+)" [ in1; in2; out ] ->
+            circuit.connect out (Gate <| Gates.AND (Wire in1) (Wire in2))
+        | Regex "([0-9]+) AND ([a-z]+) -> ([a-z]+)" [ in1; in2; out ] ->
+            circuit.connect out (Gate <| Gates.AND (Signal <| signal in1) (Wire in2))
+        | Regex "([a-z]+) OR ([a-z]+) -> ([a-z]+)" [ in1; in2; out ] ->
+            circuit.connect out (Gate <| Gates.OR (Wire in1) (Wire in2))
+        | Regex "([a-z]+) LSHIFT ([0-9]+) -> ([a-z]+)" [ in1; in2; out ] ->
+            circuit.connect out (Gate <| Gates.LSHIFT (Wire in1) (int in2))
+        | Regex "([a-z]+) RSHIFT ([0-9]+) -> ([a-z]+)" [ in1; in2; out ] ->
+            circuit.connect out (Gate <| Gates.RSHIFT (Wire in1) (int in2))
+        | x -> failwithf "Invalid instruction: %A" x) Circuit.Default
 
-let applyInstruction circuit (instruction: Instruction) =
-    let getValue =
-        function
-        | Signal value -> Some value
-        | Wire id -> Map.tryFind id circuit
+let rec evaluateWire (circuit: Circuit) wire =
+    match circuit.Wires.[wire] with
+    | Some _ -> circuit
+    | None ->
+        let source = circuit.Connections.[wire]
+        let (signal: Signal), (circuit: Circuit) = evaluateSource source circuit
+        circuit.addWireOrUpdate wire signal
 
-    match instruction with
-    | Set (input, wire) ->
-        match getValue input with
-        | Some value -> true, Map.add wire value circuit
-        | None -> false, circuit
-    | Not (w1, w2) ->
-        match getValue (Wire w1) with
-        | Some v1 -> true, Map.add w2 (~~~v1) circuit
-        | None -> false, circuit
-    | LeftShift (w1, value, w2) ->
-        match getValue (Wire w1) with
-        | Some v1 -> true, Map.add w2 (v1 <<< value) circuit
-        | None -> false, circuit
-    | RightShift (w1, value, w2) ->
-        match getValue (Wire w1) with
-        | Some v1 -> true, Map.add w2 (v1 >>> value) circuit
-        | None -> false, circuit
-    | And (i1, i2, wire) ->
-        match (getValue i1, getValue i2) with
-        | (Some v1, Some v2) -> true, Map.add wire (v1 &&& v2) circuit
-        | (_, _) -> false, circuit
-    | Or (i1, i2, wire) ->
-        match (getValue i1, getValue i2) with
-        | (Some v1, Some v2) -> true, Map.add wire (v1 ||| v2) circuit
-        | (_, _) -> false, circuit
+and evaluateSource (source: Source) (circuit: Circuit) =
+    match source with
+    | Signal signal -> signal, circuit
+    | Wire wire ->
+        let circuit = evaluateWire circuit wire
+        let signal = circuit.Wires.[wire]
+        signal, circuit
+    | Gate (Unary (source, f)) ->
+        let signal, circuit = evaluateSource source circuit
+        f signal, circuit
+    | Gate (Binary (s1, s2, f)) ->
+        let s1, circuit = evaluateSource s1 circuit
+        let s2, circuit' = evaluateSource s2 circuit
+        f s1 s2, circuit'
 
-let rec run (circuit: Map<Wire, int>) instructions =
-    let (changed'', circuit''') =
-        instructions
-        |> Seq.fold (fun (changed, circuit') instruction ->
-            let (changed', circuit'') = applyInstruction circuit' instruction
-            changed && changed', circuit'') (true, circuit)
+let evaluate (circuit: Circuit) =
+    Map.keys circuit.Wires |> Seq.fold evaluateWire circuit
 
-    if changed'' then circuit''' else run circuit''' instructions
-
-let part1 instructions =
-    let circuit = run Map.empty instructions
-    circuit.["a"]
-
-let part2 valueB instructions =
-    let circuit =
-        instructions
-        |> List.filter (fun instruction ->
-            match instruction with
-            | Set (_, "b") -> false
-            | _ -> true)
-        |> List.append [ Set(Signal valueB, "b") ]
-        |> run Map.empty
-    circuit.["a"]
+let part1 wire circuit =
+    let circuit = evaluate circuit
+    circuit.Wires.[wire]
 
 [<EntryPoint>]
 let main argv =
-    let va = part1 instructions
-    printfn "Part 1. Value on wire a: %i" va
-    let va' = part2 va instructions
-    printfn "Part 2. Value on wire a: %i" va'
+    let signalA = part1 "a" circuit
+    match signalA with
+    | Some v -> printfn "Part 1. Value on wire a: %i" v
+    | None -> printfn "Part 1. No signal on wire a"
     0
