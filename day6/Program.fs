@@ -1,55 +1,53 @@
 ﻿open System
 open System.IO
+open Extensions
 
 type Coordinate = int * int
 
-type Grid = Coordinate * Coordinate
-
 type Instruction =
-    | On of Grid
-    | Off of Grid
-    | Toggle of Grid
+    | On of Coordinate * Coordinate
+    | Off of Coordinate * Coordinate
+    | Toggle of Coordinate * Coordinate
 
 type Lights<'a> = Map<Coordinate, 'a>
 
 let input = File.ReadAllLines(@"input.txt")
 
-let parseCoordinate (string: string) =
+let coordinate (string: string) =
     string.Split(",") |> (fun xs -> int xs.[0], int xs.[1])
 
-let parseGrid offset (line: string) =
-    line.Substring(offset).Split(" ") |> (fun xs -> (parseCoordinate xs.[0], parseCoordinate xs.[2]))
+let instruction (line: string) =
+    match line with
+    | Regex "turn on (\d+,\d+) through (\d+,\d+)" [ start; finish ] ->
+        On(coordinate start, coordinate finish)
+    | Regex "turn off (\d+,\d+) through (\d+,\d+)" [ start; finish ] ->
+        Off(coordinate start, coordinate finish)
+    | Regex "toggle (\d+,\d+) through (\d+,\d+)" [ start; finish ] ->
+        Toggle(coordinate start, coordinate finish)
+    | x -> failwithf "Invalid instruction: %A" x
 
-let parseInstruction (line: string) =
-    if line.Contains("turn on") then On(parseGrid 8 line)
-    elif line.Contains("turn off") then Off(parseGrid 9 line)
-    elif line.Contains("toggle") then Toggle(parseGrid 7 line)
-    else failwith "Invalid instruction"
-
-let instructions = input |> Seq.map parseInstruction
+let instructions = input |> Seq.map instruction
 
 let lights<'a> initial =
     Seq.allPairs [ 0 .. 999 ] [ 0 .. 999 ]
     |> Seq.fold (fun (lights': Lights<'a>) coordinate -> lights'.Add(coordinate, initial)) Map.empty<Coordinate, 'a>
 
-let changeLightsInGrid (lights: Lights<'a>) grid changeFn =
-    let (a, b), (c, d) = grid
-    [ a .. c ]
-    |> Seq.fold (fun (lights': Lights<'a>) x ->
-        [ b .. d ] |> Seq.fold (fun lights'' y ->
-            lights''.Add((x, y), changeFn lights''.[(x, y)])) lights') lights
+let apply fn start finish (lights: Lights<'a>) =
+    [ fst start .. fst finish ]
+    |> Seq.fold (fun (lights: Lights<'a>) x ->
+        [ snd start .. snd finish ] |> Seq.fold (fun lights y -> lights.Add((x, y), fn lights.[(x, y)])) lights) lights
 
-let applyInstruction lights instruction =
+let applyBooleanInstruction lights instruction =
     match instruction with
-    | On grid -> changeLightsInGrid lights grid (fun _ -> true)
-    | Off grid -> changeLightsInGrid lights grid (fun _ -> false)
-    | Toggle grid -> changeLightsInGrid lights grid (fun state -> not state)
+    | On (start, finish) -> apply (fun _ -> true) start finish lights
+    | Off (start, finish) -> apply (fun _ -> false) start finish lights
+    | Toggle (start, finish) -> apply (fun state -> not state) start finish lights
 
 let applyBrightnessInstruction lights instruction =
     match instruction with
-    | On grid -> changeLightsInGrid lights grid (fun state -> state + 1)
-    | Off grid -> changeLightsInGrid lights grid (fun state -> Math.Max(0, (state - 1)))
-    | Toggle grid -> changeLightsInGrid lights grid (fun state -> state + 2)
+    | On (start, finish) -> apply (fun state -> state + 1) start finish lights
+    | Off (start, finish) -> apply (fun state -> Math.Max(0, (state - 1))) start finish lights
+    | Toggle (start, finish) -> apply (fun state -> state + 2) start finish lights
 
 let setup lights instructions instructionFn =
     instructions |> Seq.fold instructionFn lights
@@ -63,10 +61,10 @@ let totalBrightness lights =
     lights
     |> Map.toList
     |> Seq.sumBy (fun (_, brightness) -> brightness)
-    
+
 [<EntryPoint>]
 let main argv =
-    setup (lights false) instructions applyInstruction
+    setup (lights false) instructions applyBooleanInstruction
     |> totalLightsLit
     |> printfn "Part 1. Number of lights lit: %i"
 
