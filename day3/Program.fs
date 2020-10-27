@@ -5,6 +5,7 @@ let moves =
     File.ReadAllLines(@"input.txt")
     |> Seq.head
     |> seq
+    |> List.ofSeq
 
 let deliver moves houses =
     moves |>
@@ -24,9 +25,8 @@ let housesVisitedBySanta =
     |> Seq.distinct
     |> Seq.length
 
-
 let housesVisitedBySantaAndRobo =
-    let (santaMoves, roboMoves) = List.splitPairwise (moves |> List.ofSeq)
+    let (santaMoves, roboMoves) = List.splitPairwise moves
     Seq.append (deliver santaMoves [ (0, 0) ]) (deliver roboMoves [ (0, 0) ])
     |> Seq.distinct
     |> Seq.length
