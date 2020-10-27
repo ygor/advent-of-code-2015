@@ -17,6 +17,7 @@
     <Content Include="input.txt">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <Content Include="README.txt" />
   </ItemGroup>
 
 </Project>
