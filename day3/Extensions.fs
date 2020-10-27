@@ -1,4 +1,4 @@
-module day3.ListExtensions
+module Extensions
 
 module List =
     let prepend2 (x, y) (xs, ys) = x::xs, y::ys

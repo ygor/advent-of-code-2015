@@ -1,59 +1,38 @@
-﻿open System
-open System.IO
-open day3.ListExtensions
-
-type Move =
-    | North
-    | South
-    | East
-    | West
-type House = int * int
-
-let input = File.ReadAllLines(@"input.txt") |> Seq.head
-
-let parseMove =
-    function
-    | '^' -> North
-    | 'v' -> South
-    | '>' -> East
-    | '<' -> West
-    | _ -> failwith "Invalid move"
+﻿open System.IO
+open Extensions
 
 let moves =
-    input
-    |> Seq.toList
-    |> List.map parseMove
+    File.ReadAllLines(@"input.txt")
+    |> Seq.head
+    |> seq
 
-let visit house visited =
-    let count =
-        if Map.containsKey house visited then visited.[house] + 1 else 1
-    Map.add house count visited
-
-let deliverPresents moves visited =
-    let start = (0, 0)
-    moves
-    |> Seq.fold (fun (house, visited') move ->
-        let house' =
+let deliver moves houses =
+    moves |>
+    Seq.fold (fun houses move ->
+        match houses with
+        | (x,y)::_ ->
             match move with
-            | North -> (fst house + 1, snd house)
-            | South -> (fst house - 1, snd house)
-            | East -> (fst house, snd house + 1)
-            | West -> (fst house, snd house - 1)
-        (house', visit house' visited')) (start, visit start visited)
-    |> snd
+            | '^' -> (x, y - 1) :: houses
+            | 'v' -> (x, y + 1) :: houses
+            | '>' -> (x + 1, y) :: houses
+            | '<' -> (x - 1, y) :: houses
+            | x -> failwithf "Invalid move: %A" x
+        | _ -> failwith "Missing start") houses
+        
+let housesVisitedBySanta =
+    deliver moves [ (0, 0) ]
+    |> Seq.distinct
+    |> Seq.length
 
-let housesVisitedBySanta = deliverPresents moves Map.empty<House, int> |> Map.count
 
 let housesVisitedBySantaAndRobo =
-    let (santaMoves, roboMoves) = List.splitPairwise moves
-    
-    Map.empty<House, int>
-    |> deliverPresents santaMoves
-    |> deliverPresents roboMoves
-    |> Map.count
+    let (santaMoves, roboMoves) = List.splitPairwise (moves |> List.ofSeq)
+    Seq.append (deliver santaMoves [ (0, 0) ]) (deliver roboMoves [ (0, 0) ])
+    |> Seq.distinct
+    |> Seq.length
 
 [<EntryPoint>]
-let main argv =    
+let main argv =
     housesVisitedBySanta |> printfn "Part 1: Visited houses by santa: %i"
     housesVisitedBySantaAndRobo |> printfn "Part 2: Visited houses by santa and robo: %i"
     0
