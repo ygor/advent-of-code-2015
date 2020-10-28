@@ -1,6 +1,5 @@
 ﻿open System.IO
 open System.Text.RegularExpressions
-open Extensions
 
 let input = File.ReadAllLines("input.txt")
 
