@@ -1,5 +1,4 @@
 ﻿open System.IO
-open Extensions
 
 let numbers =
     File.ReadAllLines("input.txt")
