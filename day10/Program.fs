@@ -17,7 +17,7 @@ let read (numbers: int seq) =
 
 let rec repeat (numbers: int seq) =
     function
-    | 1 -> read numbers
+    | 0 -> numbers
     | n -> repeat (read numbers) (n - 1)
 
 [<EntryPoint>]
