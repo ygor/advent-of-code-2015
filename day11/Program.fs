@@ -5,21 +5,13 @@ let password =
     |> Seq.head
     |> List.ofSeq
 
-let isIncreasing ((a: char), (b: char), (c: char)) =
-    int c - int b = 1 && int b - int a = 1
-
-let rec triplets password =
-    match password with
-    | [] -> []
-    | [ _ ] -> []
-    | _ :: _ :: [] -> []
-    | x :: y :: z :: xs ->
-        if isIncreasing (x, y, z) then [ (x, y, z) ] :: triplets xs else triplets (y :: z :: xs)
-
-let containsOneTriplet password =
-    triplets password
-    |> Seq.length
-    |> (<) 0
+let containsTriplet password =
+    password
+    |> Seq.windowed 3
+    |> Seq.filter (function
+        | [| a; b; c |] -> int c - int b = 1 && int b - int a = 1
+        | _ -> false)
+    |> (not << Seq.isEmpty)
 
 let containsValidChars (password: char seq) =
     password
@@ -27,15 +19,12 @@ let containsValidChars (password: char seq) =
     |> Seq.length
     |> (=) (Seq.length password)
 
-let rec nonOverlappingPairs password =
-    match password with
-    | [] -> []
-    | [ _ ] -> []
-    | x :: y :: xs ->
-        if x = y then [ x ] :: nonOverlappingPairs xs else nonOverlappingPairs (y :: xs)
-
-let containsTwoPairs (password: char list) =
-    nonOverlappingPairs password
+let containsTwoPairs (password: char seq) =
+    password
+    |> Seq.windowed 2
+    |> Seq.filter (function
+        | [| x; y |] -> x = y
+        | _ -> false)
     |> Seq.distinct
     |> Seq.length
     |> (<) 1
@@ -47,7 +36,7 @@ let rec increment (string: char list) =
         if x = 'z' then 'a' :: increment xs else (char (int x + 1)) :: xs
 
 let isValid password =
-    containsTwoPairs password && containsValidChars password && containsOneTriplet password
+    containsTwoPairs password && containsValidChars password && containsTriplet password
 
 let rec nextPassword password =
     let next =
